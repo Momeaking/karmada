@@ -71,10 +71,11 @@ func GroupClustersWithScore(
 	spec *workv1alpha2.ResourceBindingSpec,
 	calAvailableReplicasFunc func(clusters []*clusterv1alpha1.Cluster, spec *workv1alpha2.ResourceBindingSpec) []workv1alpha2.TargetCluster,
 ) *GroupClustersInfo {
+	//判断是否忽略拓扑关系
 	if isTopologyIgnored(placement) {
 		return groupClustersIngoreTopology(clustersScore, spec, calAvailableReplicasFunc)
 	}
-
+	// 不忽略拓扑关系
 	return groupClustersBasedTopology(clustersScore, spec, placement.SpreadConstraints, calAvailableReplicasFunc)
 }
 
@@ -98,6 +99,7 @@ func groupClustersBasedTopology(
 	return groupClustersInfo
 }
 
+//忽略拓扑关系
 func groupClustersIngoreTopology(
 	clustersScore framework.ClusterScoreList,
 	rbSpec *workv1alpha2.ResourceBindingSpec,
@@ -105,6 +107,7 @@ func groupClustersIngoreTopology(
 ) *GroupClustersInfo {
 	groupClustersInfo := &GroupClustersInfo{}
 	groupClustersInfo.calAvailableReplicasFunc = calAvailableReplicasFunc
+	// 生成集群分组信息
 	groupClustersInfo.generateClustersInfo(clustersScore, rbSpec)
 
 	return groupClustersInfo

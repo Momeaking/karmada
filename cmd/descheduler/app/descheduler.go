@@ -95,13 +95,13 @@ func run(opts *options.Options, stopChan <-chan struct{}) error {
 		<-stopChan
 		cancel()
 	}()
-
+	// create descheduler
 	desched := descheduler.NewDescheduler(karmadaClient, kubeClient, opts)
 	if !opts.LeaderElection.LeaderElect {
 		desched.Run(ctx)
 		return fmt.Errorf("descheduler exited")
 	}
-
+	// create leaderElectionClient
 	leaderElectionClient, err := kubernetes.NewForConfig(rest.AddUserAgent(restConfig, "leader-election"))
 	if err != nil {
 		return err

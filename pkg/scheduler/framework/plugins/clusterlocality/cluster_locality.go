@@ -42,7 +42,7 @@ func (p *ClusterLocality) Score(ctx context.Context, placement *policyv1alpha1.P
 	if replicas <= 0 {
 		return framework.MinClusterScore, framework.NewResult(framework.Success)
 	}
-
+	// 是目标集群了得分为100
 	if spec.TargetContains(cluster.Name) {
 		return framework.MaxClusterScore, framework.NewResult(framework.Success)
 	}

@@ -40,7 +40,7 @@ func (p *TaintToleration) Filter(ctx context.Context, placement *policyv1alpha1.
 		// todo: supprot NoExecute taint
 		return t.Effect == corev1.TaintEffectNoSchedule
 	}
-
+	//检测是否有对应的容忍度
 	taint, isUntolerated := v1helper.FindMatchingUntoleratedTaint(cluster.Spec.Taints, placement.ClusterTolerations, filterPredicate)
 	if !isUntolerated {
 		return framework.NewResult(framework.Success)

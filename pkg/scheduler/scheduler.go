@@ -136,6 +136,7 @@ func NewScheduler(dynamicClient dynamic.Interface, karmadaClient karmadaclientse
 
 	// TODO(kerthcet): make plugins configurable via config file
 	registry := frameworkplugins.NewInTreeRegistry()
+	// // 构建通用的调度算法。第一个参数是调度器，第二个是过滤算法集合，包括集群亲和力、容忍度、apiinstalled，添加顺序就是最后的执行顺序
 	algorithm, err := core.NewGenericScheduler(schedulerCache, registry)
 	if err != nil {
 		return nil, err
@@ -181,14 +182,15 @@ func (s *Scheduler) Run(ctx context.Context) {
 	defer klog.Infof("Shutting down karmada scheduler")
 
 	// Establish all connections first and then begin scheduling.
+	// 应该是精确估计器的开启
 	if s.enableSchedulerEstimator {
 		s.establishEstimatorConnections()
 		s.schedulerEstimatorWorker.Run(1, stopCh)
 	}
-
+	//informer 监听启动
 	s.informerFactory.Start(stopCh)
 	s.informerFactory.WaitForCacheSync(stopCh)
-
+	//启动定时器 woker 等待资源调度
 	go wait.Until(s.worker, time.Second, stopCh)
 
 	<-stopCh
@@ -263,6 +265,7 @@ func (s *Scheduler) getClusterPlacement(crb *workv1alpha2.ClusterResourceBinding
 	return placement, string(placementBytes), nil
 }
 
+//一直从队列中获取对象
 func (s *Scheduler) scheduleNext() bool {
 	key, shutdown := s.queue.Get()
 	if shutdown {
@@ -270,12 +273,16 @@ func (s *Scheduler) scheduleNext() bool {
 		return false
 	}
 	defer s.queue.Done(key)
-
+	//进行资源调度
 	err := s.doSchedule(key.(string))
 	s.handleErr(err, key)
 	return true
 }
 
+//doSchedule进行资源的调度工作，首先获取ns和name，之后进行资源绑定操作。资源绑定操作有两个方法，
+//分别是s.doScheduleBinding(ns, name)和s.doScheduleBinding(ns, name)，本质上后面的调度工作是一样的，
+//这里选择doScheduleBinding(namespace, name string)进行讲解。中间是一些检测逻辑，核心方法是
+// err = s.scheduleResourceBinding(rb)，这里看源码是有技巧的，一般情况下都要执行的逻辑就是主干逻辑，可以重点来看。
 func (s *Scheduler) doSchedule(key string) error {
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -298,6 +305,7 @@ func (s *Scheduler) doScheduleBinding(namespace, name string) (err error) {
 	}
 
 	// Update "Scheduled" condition according to schedule result.
+	// 根据返回结果，更新调度器的条件，最后执行的不用怎么看
 	defer func() {
 		s.recordScheduleResultEventForResourceBinding(rb, err)
 		var condition metav1.Condition
@@ -316,15 +324,19 @@ func (s *Scheduler) doScheduleBinding(namespace, name string) (err error) {
 	}()
 
 	start := time.Now()
+	//获取策略中的policyPlacement字段
 	policyPlacement, policyPlacementStr, err := s.getPlacement(rb)
 	if err != nil {
 		return err
 	}
 	appliedPlacement := util.GetLabelValue(rb.Annotations, util.PolicyPlacementAnnotation)
+	//第一次进入，肯定不一样，会执行调度绑定逻辑
 	if policyPlacementStr != appliedPlacement {
 		// policy placement changed, need schedule
 		klog.Infof("Start to schedule ResourceBinding(%s/%s) as placement changed", namespace, name)
+		// 核心方法，进行资源的调度绑定
 		err = s.scheduleResourceBinding(rb)
+		// 调度监控
 		metrics.BindingSchedule(string(ReconcileSchedule), utilmetrics.DurationInSeconds(start), err)
 		return err
 	}
@@ -412,6 +424,8 @@ func (s *Scheduler) doScheduleClusterBinding(name string) (err error) {
 	return nil
 }
 
+//scheduleResourceBinding方法会根据调度算法返回调度结果，之后再更新资源绑定的注解字段。核心调度方法是
+//s.Algorithm.Schedule(context.TODO(), &placement, &resourceBinding.Spec)，更新的绑定字段的目的是防止多次执行调度逻辑。
 func (s *Scheduler) scheduleResourceBinding(resourceBinding *workv1alpha2.ResourceBinding) (err error) {
 	klog.V(4).InfoS("Begin scheduling resource binding", "resourceBinding", klog.KObj(resourceBinding))
 	defer klog.V(4).InfoS("End scheduling resource binding", "resourceBinding", klog.KObj(resourceBinding))
@@ -420,7 +434,7 @@ func (s *Scheduler) scheduleResourceBinding(resourceBinding *workv1alpha2.Resour
 	if err != nil {
 		return err
 	}
-
+	//根据调度算法 产生调度结果，
 	scheduleResult, err := s.Algorithm.Schedule(context.TODO(), &placement, &resourceBinding.Spec)
 	if err != nil {
 		klog.Errorf("Failed scheduling ResourceBinding %s/%s: %v", resourceBinding.Namespace, resourceBinding.Name, err)

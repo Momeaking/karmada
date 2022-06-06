@@ -102,6 +102,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 		panic(err)
 	}
 	config.QPS, config.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
+	// 构建controller manager
 	controllerManager, err := controllerruntime.NewManager(config, controllerruntime.Options{
 		Scheme:                     gclient.NewSchema(),
 		SyncPeriod:                 &opts.ResyncPeriod.Duration,

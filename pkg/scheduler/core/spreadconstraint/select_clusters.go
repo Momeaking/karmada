@@ -11,6 +11,7 @@ import (
 
 // SelectBestClusters selects the cluster set based the GroupClustersInfo and placement
 func SelectBestClusters(placement *policyv1alpha1.Placement, groupClustersInfo *GroupClustersInfo, needReplicas int32) ([]*clusterv1alpha1.Cluster, error) {
+	// 如果相关的拓扑信息为空，则直接返回集群列表
 	if len(placement.SpreadConstraints) == 0 || shouldIgnoreSpreadConstraint(placement) {
 		var clusters []*clusterv1alpha1.Cluster
 		for _, cluster := range groupClustersInfo.Clusters {
@@ -33,7 +34,7 @@ func selectBestClustersBySpreadConstraints(spreadConstraints []policyv1alpha1.Sp
 	for i := range spreadConstraints {
 		spreadConstraintMap[spreadConstraints[i].SpreadByField] = spreadConstraints[i]
 	}
-
+	// 分别根据Rogin和Clustyer进行集群分组
 	if _, exist := spreadConstraintMap[policyv1alpha1.SpreadByFieldRegion]; exist {
 		return selectBestClustersByRegion(spreadConstraintMap, groupClustersInfo)
 	} else if _, exist := spreadConstraintMap[policyv1alpha1.SpreadByFieldCluster]; exist {

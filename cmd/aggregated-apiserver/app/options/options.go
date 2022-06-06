@@ -98,7 +98,7 @@ func (o *Options) Run(ctx context.Context) error {
 		o.SharedInformerFactory.Start(context.StopCh)
 		return nil
 	})
-
+	//启动api-server
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
 

@@ -46,6 +46,7 @@ func (p *ClusterAffinity) Filter(ctx context.Context, placement *policyv1alpha1.
 }
 
 // Score calculates the score on the candidate cluster.
+//计算候选集群上的分数
 func (p *ClusterAffinity) Score(ctx context.Context, placement *policyv1alpha1.Placement,
 	spec *workv1alpha2.ResourceBindingSpec, cluster *clusterv1alpha1.Cluster) (int64, *framework.Result) {
 	return framework.MinClusterScore, framework.NewResult(framework.Success)

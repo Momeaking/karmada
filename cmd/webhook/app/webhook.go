@@ -84,7 +84,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 		panic(err)
 	}
 	config.QPS, config.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
-
+	//controllerruntime 构建manage
 	hookManager, err := controllerruntime.NewManager(config, controllerruntime.Options{
 		Scheme: gclient.NewSchema(),
 		WebhookServer: &webhook.Server{
@@ -105,6 +105,7 @@ func Run(ctx context.Context, opts *options.Options) error {
 	}
 
 	klog.Info("registering webhooks to the webhook server")
+	// 注册hookServer
 	hookServer := hookManager.GetWebhookServer()
 	hookServer.Register("/mutate-propagationpolicy", &webhook.Admission{Handler: &propagationpolicy.MutatingAdmission{}})
 	hookServer.Register("/validate-propagationpolicy", &webhook.Admission{Handler: &propagationpolicy.ValidatingAdmission{}})

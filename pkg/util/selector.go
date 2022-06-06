@@ -47,6 +47,7 @@ func ResourceMatches(resource *unstructured.Unstructured, rs policyv1alpha1.Reso
 }
 
 // ClusterMatches tells if specific cluster matches the affinity.
+// 分别使用排除集群、label、Field进行判断当前集群是否符合要求
 func ClusterMatches(cluster *clusterv1alpha1.Cluster, affinity policyv1alpha1.ClusterAffinity) bool {
 	for _, clusterName := range affinity.ExcludeClusters {
 		if clusterName == cluster.Name {

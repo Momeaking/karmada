@@ -161,6 +161,7 @@ func UnJoinCluster(controlPlaneRestConfig, clusterConfig *rest.Config, opts Comm
 	controlPlaneKarmadaClient := karmadaclientset.NewForConfigOrDie(controlPlaneRestConfig)
 
 	// delete the cluster object in host cluster that associates the unjoining cluster
+	// 删除集群操作
 	err = deleteClusterObject(controlPlaneKarmadaClient, opts)
 	if err != nil {
 		klog.Errorf("Failed to delete cluster object. cluster name: %s, error: %v", opts.ClusterName, err)
@@ -268,7 +269,7 @@ func deleteClusterObject(controlPlaneKarmadaClient *karmadaclientset.Clientset, 
 	if opts.DryRun {
 		return nil
 	}
-
+	// 直接从etcd中删除集群
 	err := controlPlaneKarmadaClient.ClusterV1alpha1().Clusters().Delete(context.TODO(), opts.ClusterName, metav1.DeleteOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -279,6 +280,7 @@ func deleteClusterObject(controlPlaneKarmadaClient *karmadaclientset.Clientset, 
 	}
 
 	// make sure the given cluster object has been deleted
+	// 确保集群被删除
 	err = wait.Poll(1*time.Second, opts.Wait, func() (done bool, err error) {
 		_, err = controlPlaneKarmadaClient.ClusterV1alpha1().Clusters().Get(context.TODO(), opts.ClusterName, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {

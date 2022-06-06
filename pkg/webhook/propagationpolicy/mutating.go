@@ -34,6 +34,7 @@ func (a *MutatingAdmission) Handle(ctx context.Context, req admission.Request) a
 	klog.V(2).Infof("Mutating PropagationPolicy(%s/%s) for request: %s", policy.Namespace, policy.Name, req.Operation)
 
 	// Set default namespace for all resource selector if not set.
+	// 设置默认命名空间
 	for i := range policy.Spec.ResourceSelectors {
 		if len(policy.Spec.ResourceSelectors[i].Namespace) == 0 {
 			klog.Infof("Setting resource selector default namespace for policy: %s/%s", policy.Namespace, policy.Name)
@@ -45,13 +46,14 @@ func (a *MutatingAdmission) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("PropagationPolicy's name should be no more than %d characters", validation.LabelValueMaxLength))
 	}
 	// Set default spread constraints if both 'SpreadByField' and 'SpreadByLabel' not set.
+	// 设置默认的传播机制
 	helper.SetDefaultSpreadConstraints(policy.Spec.Placement.SpreadConstraints)
 
 	addedResourceSelectors := helper.GetFollowedResourceSelectorsWhenMatchServiceImport(policy.Spec.ResourceSelectors)
 	if addedResourceSelectors != nil {
 		policy.Spec.ResourceSelectors = append(policy.Spec.ResourceSelectors, addedResourceSelectors...)
 	}
-
+	// 重新进行编码
 	marshaledBytes, err := json.Marshal(policy)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)

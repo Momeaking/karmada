@@ -77,6 +77,7 @@ func NewSchedulerCommand(stopChan <-chan struct{}) *cobra.Command {
 
 func run(opts *options.Options, stopChan <-chan struct{}) error {
 	klog.Infof("karmada-scheduler version: %s", version.Get())
+	//1、开启健康检测服务 和监控服务 /healthz 用于pod 的健康监测，Metrics用于指标监控（cpu、内存等）
 	go serveHealthzAndMetrics(net.JoinHostPort(opts.BindAddress, strconv.Itoa(opts.SecurePort)))
 
 	restConfig, err := clientcmd.BuildConfigFromFlags(opts.Master, opts.KubeConfig)
@@ -84,7 +85,7 @@ func run(opts *options.Options, stopChan <-chan struct{}) error {
 		return fmt.Errorf("error building kubeconfig: %s", err.Error())
 	}
 	restConfig.QPS, restConfig.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
-
+	//分别构建dynamicClientSet，karmadaClient，kubeClientSet
 	dynamicClientSet := dynamic.NewForConfigOrDie(restConfig)
 	karmadaClient := karmadaclientset.NewForConfigOrDie(restConfig)
 	kubeClientSet := kubernetes.NewForConfigOrDie(restConfig)
@@ -94,7 +95,7 @@ func run(opts *options.Options, stopChan <-chan struct{}) error {
 		<-stopChan
 		cancel()
 	}()
-
+	//2、构建一个karmada调度器
 	sched, err := scheduler.NewScheduler(dynamicClientSet, karmadaClient, kubeClientSet,
 		scheduler.WithEnableSchedulerEstimator(opts.EnableSchedulerEstimator),
 		scheduler.WithSchedulerEstimatorPort(opts.SchedulerEstimatorPort),
@@ -108,7 +109,9 @@ func run(opts *options.Options, stopChan <-chan struct{}) error {
 		sched.Run(ctx)
 		return fmt.Errorf("scheduler exited")
 	}
-
+	//使用资源锁作为分布式锁，资源锁有三种，默认使用的是endpoint，分布式锁的基本原理：
+	// 分布式锁的基本原理：所有的节点去往etcd中创建key（原子操作），创建key成功的为领导者节点，领导者节点每2s会更新租约时间
+	// 其他非领导者节点定时去获取key，并检测租约时间是否到期，如果到期进行抢占则更新key（把自身的信息放进去）
 	leaderElectionClient, err := kubernetes.NewForConfig(rest.AddUserAgent(restConfig, "leader-election"))
 	if err != nil {
 		return err

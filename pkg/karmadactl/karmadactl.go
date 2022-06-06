@@ -47,6 +47,7 @@ func NewKarmadaCtlCommand(cmdUse, parentCommand string) *cobra.Command {
 	_ = flag.CommandLine.Parse(nil)
 
 	karmadaConfig := NewKarmadaConfig(clientcmd.NewDefaultPathOptions())
+	//join指令
 	rootCmd.AddCommand(NewCmdJoin(karmadaConfig, parentCommand))
 	rootCmd.AddCommand(NewCmdUnjoin(karmadaConfig, parentCommand))
 	rootCmd.AddCommand(sharedcommand.NewCmdVersion(parentCommand))
@@ -58,6 +59,7 @@ func NewKarmadaCtlCommand(cmdUse, parentCommand string) *cobra.Command {
 	rootCmd.AddCommand(NewCmdLogs(karmadaConfig, parentCommand))
 	rootCmd.AddCommand(NewCmdExec(karmadaConfig, parentCommand))
 	rootCmd.AddCommand(NewCmdDescribe(karmadaConfig, parentCommand))
+	// init指令
 	rootCmd.AddCommand(cmdinit.NewCmdInit(parentCommand))
 	rootCmd.AddCommand(NewCmdDeInit(parentCommand))
 
