@@ -149,6 +149,7 @@ func RunJoin(karmadaConfig KarmadaConfig, opts CommandJoinOption) error {
 	klog.V(1).Infof("joining cluster. cluster namespace: %s", opts.ClusterNamespace)
 
 	// Get control plane karmada-apiserver client
+	// 获取karmada-apiserver 的client ，用于访问etcd
 	controlPlaneRestConfig, err := karmadaConfig.GetRestConfig(opts.KarmadaContext, opts.KubeConfig)
 	if err != nil {
 		return fmt.Errorf("failed to get control plane rest config. context: %s, kube-config: %s, error: %v",
@@ -156,6 +157,7 @@ func RunJoin(karmadaConfig KarmadaConfig, opts CommandJoinOption) error {
 	}
 
 	// Get cluster config
+	// 获取 cluster config
 	clusterConfig, err := karmadaConfig.GetRestConfig(opts.ClusterContext, opts.ClusterKubeConfig)
 	if err != nil {
 		return fmt.Errorf("failed to get joining cluster config. error: %v", err)
@@ -166,17 +168,21 @@ func RunJoin(karmadaConfig KarmadaConfig, opts CommandJoinOption) error {
 
 // JoinCluster join the cluster into karmada.
 func JoinCluster(controlPlaneRestConfig, clusterConfig *rest.Config, opts CommandJoinOption) (err error) {
+	// 创建client
 	controlPlaneKubeClient := kubeclient.NewForConfigOrDie(controlPlaneRestConfig)
+	// 创建kubeclient
 	clusterKubeClient := kubeclient.NewForConfigOrDie(clusterConfig)
 
 	klog.V(1).Infof("joining cluster config. endpoint: %s", clusterConfig.Host)
 
 	// ensure namespace where the cluster object be stored exists in control plane.
+	// 查看namespace
 	if _, err = util.EnsureNamespaceExist(controlPlaneKubeClient, opts.ClusterNamespace, opts.DryRun); err != nil {
 		return err
 	}
 
-	clusterSecret, impersonatorSecret, err := obtainCredentialsFromMemberCluster(clusterKubeClient, opts.ClusterNamespace, opts.ClusterName, opts.DryRun)
+	clusterSecret, impersonatorSecret, err := obtainCredentialsFromMemberCluster(
+		clusterKubeClient, opts.ClusterNamespace, opts.ClusterName, opts.DryRun)
 	if err != nil {
 		return err
 	}
@@ -184,7 +190,7 @@ func JoinCluster(controlPlaneRestConfig, clusterConfig *rest.Config, opts Comman
 	if opts.DryRun {
 		return nil
 	}
-
+	// 注册集群到ControllerPlane
 	err = registerClusterInControllerPlane(opts, controlPlaneRestConfig, clusterConfig, controlPlaneKubeClient, clusterSecret, impersonatorSecret)
 	if err != nil {
 		return err
@@ -264,7 +270,7 @@ func registerClusterInControllerPlane(opts CommandJoinOption, controlPlaneRestCo
 			clusterv1alpha1.SecretTokenKey:  clusterSecret.Data[clusterv1alpha1.SecretTokenKey],
 		},
 	}
-
+	// 创建secret
 	secret, err := util.CreateSecret(controlPlaneKubeClient, secret)
 	if err != nil {
 		return fmt.Errorf("failed to create secret in control plane. error: %v", err)
@@ -285,7 +291,7 @@ func registerClusterInControllerPlane(opts CommandJoinOption, controlPlaneRestCo
 	if err != nil {
 		return fmt.Errorf("failed to create impersonator secret in control plane. error: %v", err)
 	}
-
+	// 创建集群
 	cluster, err := generateClusterInControllerPlane(controlPlaneRestConfig, clusterConfig, opts, *secret, *impersonatorSecret)
 	if err != nil {
 		return err
@@ -313,7 +319,8 @@ func registerClusterInControllerPlane(opts CommandJoinOption, controlPlaneRestCo
 	return nil
 }
 
-func generateClusterInControllerPlane(controlPlaneConfig, clusterConfig *rest.Config, opts CommandJoinOption, secret, impersonatorSecret corev1.Secret) (*clusterv1alpha1.Cluster, error) {
+func generateClusterInControllerPlane(controlPlaneConfig, clusterConfig *rest.Config,
+	opts CommandJoinOption, secret, impersonatorSecret corev1.Secret) (*clusterv1alpha1.Cluster, error) {
 	clusterObj := &clusterv1alpha1.Cluster{}
 	clusterObj.Name = opts.ClusterName
 	clusterObj.Spec.SyncMode = clusterv1alpha1.Push

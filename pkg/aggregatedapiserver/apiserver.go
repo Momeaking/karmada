@@ -86,17 +86,18 @@ func (cfg *Config) Complete() CompletedConfig {
 }
 
 func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error) {
+	// 构建一个通用的server
 	genericServer, err := c.GenericConfig.New("aggregated-apiserver", genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		return nil, err
 	}
-
+	// 构建一个Apiserver
 	server := &APIServer{
 		GenericAPIServer: genericServer,
 	}
-
+	// 构建默认的apiGroup组
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(clusterapis.GroupName, Scheme, ParameterCodec, Codecs)
-
+	// 构建Storage
 	clusterStorage, err := clusterstorage.NewStorage(Scheme, kubeClient, c.GenericConfig.RESTOptionsGetter)
 	if err != nil {
 		klog.Errorf("unable to create REST storage for a resource due to %v, will die", err)
@@ -107,7 +108,7 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	v1alpha1cluster["clusters/status"] = clusterStorage.Status
 	v1alpha1cluster["clusters/proxy"] = clusterStorage.Proxy
 	apiGroupInfo.VersionedResourcesStorageMap["v1alpha1"] = v1alpha1cluster
-
+	// 设置API组
 	if err = server.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}

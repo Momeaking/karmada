@@ -83,11 +83,11 @@ func (o *Options) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	//1、获取配置
 	restConfig := config.GenericConfig.ClientConfig
 	restConfig.QPS, restConfig.Burst = o.KubeAPIQPS, o.KubeAPIBurst
 	kubeClientSet := kubernetes.NewForConfigOrDie(restConfig)
-
+	// 2、创建server
 	server, err := config.Complete().New(kubeClientSet)
 	if err != nil {
 		return err
