@@ -101,12 +101,13 @@ func init() {
 
 func run(ctx context.Context, karmadaConfig karmadactl.KarmadaConfig, opts *options.Options) error {
 	klog.Infof("karmada-agent version: %s", version.Get())
+	// 1、 获取 karmadaConfig
 	controlPlaneRestConfig, err := karmadaConfig.GetRestConfig(opts.KarmadaContext, opts.KarmadaKubeConfig)
 	if err != nil {
 		return fmt.Errorf("error building kubeconfig of karmada control plane: %w", err)
 	}
 	controlPlaneRestConfig.QPS, controlPlaneRestConfig.Burst = opts.KubeAPIQPS, opts.KubeAPIBurst
-
+	// 2 、获取集群config
 	clusterConfig, err := controllerruntime.GetConfig()
 	if err != nil {
 		return fmt.Errorf("error building kubeconfig of member cluster: %w", err)
@@ -118,13 +119,14 @@ func run(ctx context.Context, karmadaConfig karmadactl.KarmadaConfig, opts *opti
 	}
 
 	// create a ServiceAccount for impersonator in cluster.
+	// 3、创建账号
 	impersonationSA := &corev1.ServiceAccount{}
 	impersonationSA.Namespace = opts.ClusterNamespace
 	impersonationSA.Name = names.GenerateServiceAccountName("impersonator")
 	if _, err = util.EnsureServiceAccountExist(clusterKubeClient, impersonationSA, false); err != nil {
 		return err
 	}
-
+	// 4、注册ControlPlaneAPIServer
 	err = registerWithControlPlaneAPIServer(controlPlaneRestConfig, clusterConfig, opts)
 	if err != nil {
 		return fmt.Errorf("failed to register with karmada control plane: %w", err)

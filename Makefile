@@ -33,6 +33,8 @@ TARGETS := karmada-aggregated-apiserver \
 
 CTL_TARGETS := karmadactl kubectl-karmada
 
+
+
 # Build code.
 #
 # Args:
@@ -70,6 +72,12 @@ $(IMAGE_TARGET):
 	target=$$(echo $(subst image-,,$@));\
 	make $$target GOOS=linux;\
 	VERSION=$(VERSION) REGISTRY=$(REGISTRY) BUILD_PLATFORMS=linux/$(GOARCH) hack/docker.sh $$target
+
+karmada-controller-manager: $(SOURCES)
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build \
+		-ldflags $(LDFLAGS) \
+		-o karmada-controller-manager \
+		cmd/controller-manager/controller-manager.go
 
 images: $(IMAGE_TARGET)
 

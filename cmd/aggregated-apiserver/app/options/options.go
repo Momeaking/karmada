@@ -93,11 +93,12 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	server.GenericAPIServer.AddPostStartHookOrDie("start-aggregated-server-informers", func(context genericapiserver.PostStartHookContext) error {
-		config.GenericConfig.SharedInformerFactory.Start(context.StopCh)
-		o.SharedInformerFactory.Start(context.StopCh)
-		return nil
-	})
+	server.GenericAPIServer.AddPostStartHookOrDie("start-aggregated-server-informers",
+		func(context genericapiserver.PostStartHookContext) error {
+			config.GenericConfig.SharedInformerFactory.Start(context.StopCh)
+			o.SharedInformerFactory.Start(context.StopCh)
+			return nil
+		})
 	//启动api-server
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
@@ -124,7 +125,8 @@ func (o *Options) Config() (*aggregatedapiserver.Config, error) {
 	serverConfig := genericapiserver.NewRecommendedConfig(aggregatedapiserver.Codecs)
 	serverConfig.LongRunningFunc = customLongRunningRequestCheck(sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"))
-	serverConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapi.NewDefinitionNamer(aggregatedapiserver.Scheme))
+	serverConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions,
+		openapi.NewDefinitionNamer(aggregatedapiserver.Scheme))
 	serverConfig.OpenAPIConfig.Info.Title = "Karmada"
 	if err := o.RecommendedOptions.ApplyTo(serverConfig); err != nil {
 		return nil, err

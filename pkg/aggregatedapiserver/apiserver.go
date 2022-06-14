@@ -10,6 +10,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	"net/http"
 
 	clusterapis "github.com/karmada-io/karmada/pkg/apis/cluster"
 	clusterinstall "github.com/karmada-io/karmada/pkg/apis/cluster/install"
@@ -91,6 +92,11 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	if err != nil {
 		return nil, err
 	}
+	metricsHandler, err := c.metricsHandler()
+	if err != nil {
+		return nil, err
+	}
+	genericServer.Handler.NonGoRestfulMux.HandleFunc("/metrics", metricsHandler)
 	// 构建一个Apiserver
 	server := &APIServer{
 		GenericAPIServer: genericServer,
@@ -114,4 +120,15 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	}
 
 	return server, nil
+}
+
+func (c completedConfig) metricsHandler() (http.HandlerFunc, error) {
+
+	// Return handler that serves metrics from both legacy and Metrics Server registry
+	return func(w http.ResponseWriter, req *http.Request) {
+		_, err := w.Write([]byte("hello world"))
+		if err != nil {
+			return
+		}
+	}, nil
 }

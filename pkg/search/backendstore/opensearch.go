@@ -109,7 +109,7 @@ func NewOpenSearch(cluster string, cfg *v1alpha1.BackendStoreConfig) (*OpenSearc
 	os := &OpenSearch{
 		cluster: cluster,
 		indices: make(map[string]struct{})}
-
+	// 初始化 client
 	if err := os.initClient(cfg); err != nil {
 		return nil, fmt.Errorf("cannot init client: %v", err)
 	}
@@ -278,7 +278,7 @@ func (os *OpenSearch) initClient(bsc *v1alpha1.BackendStoreConfig) error {
 			klog.Warningf("cannot get secret %s/%s: %v, try to without auth", secret.Namespace, secret.Name, err)
 			return
 		}
-
+		// 从 etcd中获取用户名和密码
 		return string(secret.Data["username"]), string(secret.Data["password"])
 	}(bsc.OpenSearch.SecretRef)
 

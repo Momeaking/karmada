@@ -68,7 +68,7 @@ func NewController(restConfig *rest.Config) (*Controller, error) {
 	}
 
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-
+	// 1、构建controller
 	c := &Controller{
 		restConfig:      restConfig,
 		informerFactory: factory,
@@ -78,6 +78,7 @@ func NewController(restConfig *rest.Config) (*Controller, error) {
 
 		InformerManager: informermanager.GetInstance(),
 	}
+	// 2、添加所有的事件，add、update、delete
 	c.addAllEventHandlers()
 
 	// TODO: leader election and full sync
@@ -85,19 +86,21 @@ func NewController(restConfig *rest.Config) (*Controller, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 3、初始化backendstore
 	backendstore.Init(cs)
 	return c, nil
 }
 
 // addAllEventHandlers adds all event handlers to the informer
 func (c *Controller) addAllEventHandlers() {
+	// 1、集群的基本事件
 	clusterInformer := c.informerFactory.Cluster().V1alpha1().Clusters().Informer()
 	clusterInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addCluster,
 		UpdateFunc: c.updateCluster,
 		DeleteFunc: c.deleteCluster,
 	})
-
+	// 2、资源注册的基本事件
 	resourceRegistryInformer := c.informerFactory.Search().V1alpha1().ResourceRegistries().Informer()
 	resourceRegistryInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.addResourceRegistry,
@@ -204,6 +207,7 @@ func (c *Controller) doCacheCluster(cluster string) error {
 		if err != nil {
 			return err
 		}
+
 		_ = c.InformerManager.ForCluster(cluster, clusterDynamicClient.DynamicClientSet, 0)
 	}
 

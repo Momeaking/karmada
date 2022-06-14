@@ -70,6 +70,7 @@ func (o *Options) Validate() error {
 
 // Run runs the aggregated-apiserver with options. This should never exit.
 func (o *Options) Run(ctx context.Context) error {
+	// 1、获取controller
 	config, err := o.Config()
 	if err != nil {
 		return err
@@ -79,28 +80,31 @@ func (o *Options) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	server.GenericAPIServer.AddPostStartHookOrDie("start-karmada-search-informers", func(context genericapiserver.PostStartHookContext) error {
-		config.GenericConfig.SharedInformerFactory.Start(context.StopCh)
-		return nil
-	})
-
-	server.GenericAPIServer.AddPostStartHookOrDie("start-karmada-search-controller", func(context genericapiserver.PostStartHookContext) error {
-		// start ResourceRegistry controller
-		config.Controller.Start(context.StopCh)
-		return nil
-	})
-
+	// 2、 informer
+	server.GenericAPIServer.AddPostStartHookOrDie("start-karmada-search-informers",
+		func(context genericapiserver.PostStartHookContext) error {
+			config.GenericConfig.SharedInformerFactory.Start(context.StopCh)
+			return nil
+		})
+	// 3、 controller
+	server.GenericAPIServer.AddPostStartHookOrDie("start-karmada-search-controller",
+		func(context genericapiserver.PostStartHookContext) error {
+			// start ResourceRegistry controller
+			config.Controller.Start(context.StopCh)
+			return nil
+		})
+	// 4、构建一个server
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
 
 // Config returns config for the api server given Options
 func (o *Options) Config() (*search.Config, error) {
 	// TODO have a "real" external address
-	if err := o.RecommendedOptions.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
+	if err := o.RecommendedOptions.SecureServing.
+		MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
-
+	// 2、初始化一个config
 	serverConfig := genericapiserver.NewRecommendedConfig(search.Codecs)
 	serverConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapi.NewDefinitionNamer(search.Scheme))
 	serverConfig.OpenAPIConfig.Info.Title = "karmada-search"
@@ -110,6 +114,7 @@ func (o *Options) Config() (*search.Config, error) {
 
 	serverConfig.ClientConfig.QPS = o.KubeAPIQPS
 	serverConfig.ClientConfig.Burst = o.KubeAPIBurst
+	// 3、构建 search controller
 	ctl, err := search.NewController(serverConfig.ClientConfig)
 	if err != nil {
 		return nil, err
