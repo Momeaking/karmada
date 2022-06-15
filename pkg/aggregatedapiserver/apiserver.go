@@ -96,7 +96,7 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	if err != nil {
 		return nil, err
 	}
-	genericServer.Handler.NonGoRestfulMux.HandleFunc("/metrics", metricsHandler)
+	genericServer.Handler.NonGoRestfulMux.HandleFunc("/hello", metricsHandler)
 	// 构建一个Apiserver
 	server := &APIServer{
 		GenericAPIServer: genericServer,
