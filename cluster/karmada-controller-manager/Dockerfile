@@ -11,6 +11,6 @@ FROM alpine:3.15.1
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /bin/karmada-controller-manager /bin/karmada-controller-manager
+COPY main /bin/karmada-aggregated-apiserver
 
-CMD ["/bin/karmada-controller-manager"]
+CMD ["/bin/karmada-aggregated-apiserver"]
