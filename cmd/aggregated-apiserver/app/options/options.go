@@ -106,7 +106,8 @@ func (o *Options) Run(ctx context.Context) error {
 // Config returns config for the api server given Options
 func (o *Options) Config() (*aggregatedapiserver.Config, error) {
 	// TODO have a "real" external address
-	if err := o.RecommendedOptions.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
+	if err := o.RecommendedOptions.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost",
+		nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
@@ -121,10 +122,11 @@ func (o *Options) Config() (*aggregatedapiserver.Config, error) {
 		o.SharedInformerFactory = informerFactory
 		return []admission.PluginInitializer{}, nil
 	}
-
+	// 使用推荐配置
 	serverConfig := genericapiserver.NewRecommendedConfig(aggregatedapiserver.Codecs)
 	serverConfig.LongRunningFunc = customLongRunningRequestCheck(sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"))
+	// 配置openapi
 	serverConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions,
 		openapi.NewDefinitionNamer(aggregatedapiserver.Scheme))
 	serverConfig.OpenAPIConfig.Info.Title = "Karmada"

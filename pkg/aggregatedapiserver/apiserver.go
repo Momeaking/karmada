@@ -1,11 +1,13 @@
 package aggregatedapiserver
 
 import (
+	"github.com/emicklei/go-restful"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/kubernetes"
@@ -92,11 +94,10 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	if err != nil {
 		return nil, err
 	}
-	metricsHandler, err := c.metricsHandler()
+	//metricsHandler, err := c.metricsHandler()
 	if err != nil {
 		return nil, err
 	}
-	genericServer.Handler.NonGoRestfulMux.HandleFunc("/hello", metricsHandler)
 	// 构建一个Apiserver
 	server := &APIServer{
 		GenericAPIServer: genericServer,
@@ -118,17 +119,38 @@ func (c completedConfig) New(kubeClient kubernetes.Interface) (*APIServer, error
 	if err = server.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
+	//server.GenericAPIServer.Handler.NonGoRestfulMux.
+	//Install(server.GenericAPIServer.Handler.NonGoRestfulMux)
+	//	server.GenericAPIServer.Handler.NonGoRestfulMux.
 
 	return server, nil
 }
 
 func (c completedConfig) metricsHandler() (http.HandlerFunc, error) {
-
 	// Return handler that serves metrics from both legacy and Metrics Server registry
 	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		_, err := w.Write([]byte("hello world"))
 		if err != nil {
 			return
 		}
 	}, nil
+}
+
+func Install(c *restful.Container) {
+	// Set up a service to return the git code version.
+	versionWS := new(restful.WebService)
+	versionWS.Path("/hello")
+	versionWS.Doc("git code version from which this is built")
+	versionWS.Route(
+		versionWS.GET("/").To(handleVersion).
+			Doc("get the code version").
+			Operation("getCodeVersion").
+			Produces(restful.MIME_JSON).
+			Consumes(restful.MIME_JSON))
+	c.Add(versionWS)
+}
+func handleVersion(req *restful.Request, resp *restful.Response) {
+	responsewriters.WriteRawJSON(http.StatusOK, "hello word", resp.ResponseWriter)
 }

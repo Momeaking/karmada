@@ -48,6 +48,9 @@ type APIServerHandler struct {
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling
 	// This is where other servers can attach handler to various parts of the chain.
+	
+	
+	
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.
