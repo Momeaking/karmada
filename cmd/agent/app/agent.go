@@ -44,6 +44,7 @@ import (
 // NewAgentCommand creates a *cobra.Command object with default parameters
 func NewAgentCommand(ctx context.Context) *cobra.Command {
 	opts := options.NewOptions()
+	// 构建karmadaConfig，是一个路径
 	karmadaConfig := karmadactl.NewKarmadaConfig(clientcmd.NewDefaultPathOptions())
 
 	cmd := &cobra.Command{
@@ -101,7 +102,9 @@ func init() {
 
 func run(ctx context.Context, karmadaConfig karmadactl.KarmadaConfig, opts *options.Options) error {
 	klog.Infof("karmada-agent version: %s", version.Get())
-	// 1、 获取 karmadaConfig
+	// 1、 获取 karmadaConfig，返回的是restconfig,controlPlaneRestConfig是一个config文件，可以通过rest.RESTClientFor构建restClient
+	//restClient, err := rest.RESTClientFor(controlPlaneRestConfig)
+	//restClient.Delete()
 	controlPlaneRestConfig, err := karmadaConfig.GetRestConfig(opts.KarmadaContext, opts.KarmadaKubeConfig)
 	if err != nil {
 		return fmt.Errorf("error building kubeconfig of karmada control plane: %w", err)
@@ -126,21 +129,21 @@ func run(ctx context.Context, karmadaConfig karmadactl.KarmadaConfig, opts *opti
 	if _, err = util.EnsureServiceAccountExist(clusterKubeClient, impersonationSA, false); err != nil {
 		return err
 	}
-	// 4、注册ControlPlaneAPIServer
+	// 4、注册ControlPlaneAPIServer，向ControlPlane注册集群信息
 	err = registerWithControlPlaneAPIServer(controlPlaneRestConfig, clusterConfig, opts)
 	if err != nil {
 		return fmt.Errorf("failed to register with karmada control plane: %w", err)
 	}
-
+	//5、生成执行的namespace
 	executionSpace, err := names.GenerateExecutionSpaceName(opts.ClusterName)
 	if err != nil {
 		return fmt.Errorf("failed to generate execution space name for member cluster %s, err is %v", opts.ClusterName, err)
 	}
-
+	//6、创建controllerManager，使用controller runtime 实现controllerManager
 	controllerManager, err := controllerruntime.NewManager(controlPlaneRestConfig, controllerruntime.Options{
-		Scheme:                     gclient.NewSchema(),
-		SyncPeriod:                 &opts.ResyncPeriod.Duration,
-		Namespace:                  executionSpace,
+		Scheme:                     gclient.NewSchema(),         // 新建注册表
+		SyncPeriod:                 &opts.ResyncPeriod.Duration, // 同步事件间隔
+		Namespace:                  executionSpace,              //namespace
 		LeaderElection:             opts.LeaderElection.LeaderElect,
 		LeaderElectionID:           fmt.Sprintf("karmada-agent-%s", opts.ClusterName),
 		LeaderElectionNamespace:    opts.LeaderElection.ResourceNamespace,
@@ -155,7 +158,7 @@ func run(ctx context.Context, karmadaConfig karmadactl.KarmadaConfig, opts *opti
 	if err != nil {
 		return fmt.Errorf("failed to build controller manager: %w", err)
 	}
-
+	//7、 安装和启动controller
 	if err = setupControllers(controllerManager, opts, ctx.Done()); err != nil {
 		return err
 	}
@@ -178,6 +181,7 @@ func setupControllers(mgr controllerruntime.Manager, opts *options.Options, stop
 	}
 
 	objectWatcher := objectwatcher.NewObjectWatcher(mgr.GetClient(), mgr.GetRESTMapper(), util.NewClusterDynamicClientSetForAgent, resourceInterpreter)
+	// 构建上下文
 	controllerContext := controllerscontext.Context{
 		Mgr:           mgr,
 		ObjectWatcher: objectWatcher,
@@ -294,10 +298,12 @@ func startServiceExportController(ctx controllerscontext.Context) (bool, error) 
 }
 
 func registerWithControlPlaneAPIServer(controlPlaneRestConfig, clusterRestConfig *restclient.Config, opts *options.Options) error {
+	// 1、构建kubeclient
 	controlPlaneKubeClient := kubeclientset.NewForConfigOrDie(controlPlaneRestConfig)
 
 	namespaceObj := &corev1.Namespace{}
 	namespaceObj.Name = util.NamespaceClusterLease
+	// 2、创建namespace，在controlPlane中
 	if _, err := util.CreateNamespace(controlPlaneKubeClient, namespaceObj); err != nil {
 		klog.Errorf("Failed to create namespace(%s) object, error: %v", namespaceObj.Name, err)
 		return err
@@ -309,12 +315,12 @@ func registerWithControlPlaneAPIServer(controlPlaneRestConfig, clusterRestConfig
 			Name:      names.GenerateImpersonationSecretName(opts.ClusterName),
 		},
 	}
-
+	// 3、生成集群信息
 	clusterObj, err := generateClusterInControllerPlane(controlPlaneRestConfig, opts, *impersonatorSecret)
 	if err != nil {
 		return err
 	}
-
+	// 4、获取集群凭证
 	clusterImpersonatorSecret, err := obtainCredentialsFromMemberCluster(clusterRestConfig, opts)
 	if err != nil {
 		return err
@@ -325,6 +331,7 @@ func registerWithControlPlaneAPIServer(controlPlaneRestConfig, clusterRestConfig
 	impersonatorSecret.Data = map[string][]byte{
 		clusterv1alpha1.SecretTokenKey: clusterImpersonatorSecret.Data[clusterv1alpha1.SecretTokenKey]}
 	// create secret to store impersonation info in control plane
+	// 5、创建Secret
 	_, err = util.CreateSecret(controlPlaneKubeClient, impersonatorSecret)
 	if err != nil {
 		return fmt.Errorf("failed to create impersonator secret in control plane. error: %v", err)
@@ -343,8 +350,9 @@ func generateClusterInControllerPlane(controlPlaneRestConfig *restclient.Config,
 			Name:      impersonatorSecret.Name,
 		}
 	}
-
+	// 构建controlPlaneKarmadaClient
 	controlPlaneKarmadaClient := karmadaclientset.NewForConfigOrDie(controlPlaneRestConfig)
+	// 1、向控制台(controlPlane)的集群中创建当前集群信息
 	cluster, err := util.CreateOrUpdateClusterObject(controlPlaneKarmadaClient, clusterObj, mutateFunc)
 	if err != nil {
 		klog.Errorf("Failed to create cluster(%s) object, error: %v", clusterObj.Name, err)

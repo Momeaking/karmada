@@ -218,6 +218,7 @@ func (blder *Builder) project(obj client.Object, proj objectProjection) (client.
 
 func (blder *Builder) doWatch() error {
 	// Reconcile type
+	// 1、获取资源类型
 	typeForSrc, err := blder.project(blder.forInput.object, blder.forInput.objectProjection)
 	if err != nil {
 		return err
@@ -230,6 +231,7 @@ func (blder *Builder) doWatch() error {
 	}
 
 	// Watches the managed types
+	// Watch 子类型
 	for _, own := range blder.ownsInput {
 		typeForSrc, err := blder.project(own.object, own.objectProjection)
 		if err != nil {

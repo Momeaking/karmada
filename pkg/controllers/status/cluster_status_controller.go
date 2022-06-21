@@ -66,9 +66,10 @@ type ClusterStatusController struct {
 	ClusterDynamicClientSetFunc func(clusterName string, client client.Client) (*util.DynamicClusterClient, error)
 	// ClusterClientOption holds the attributes that should be injected to a Kubernetes client.
 	ClusterClientOption *util.ClientOption
-
+	// 集群状态更新频率
 	// ClusterStatusUpdateFrequency is the frequency that controller computes and report cluster status.
 	ClusterStatusUpdateFrequency metav1.Duration
+	// 集群租约时间
 	// ClusterLeaseDuration is a duration that candidates for a lease need to wait to force acquire it.
 	// This is measure against time of last observed lease RenewTime.
 	ClusterLeaseDuration metav1.Duration
@@ -76,6 +77,7 @@ type ClusterStatusController struct {
 	// how long the current holder of a lease has last updated the lease.
 	ClusterLeaseRenewIntervalFraction float64
 	// ClusterLeaseControllers store clusters and their corresponding lease controllers.
+	// 集群租约控制器
 	ClusterLeaseControllers sync.Map
 	// ClusterFailureThreshold is the duration of failure for the cluster to be considered unhealthy.
 	ClusterFailureThreshold metav1.Duration
@@ -91,7 +93,7 @@ type ClusterStatusController struct {
 // Result.Requeue is true, otherwise upon completion it will requeue the reconcile key after the duration.
 func (c *ClusterStatusController) Reconcile(ctx context.Context, req controllerruntime.Request) (controllerruntime.Result, error) {
 	klog.V(4).Infof("Syncing cluster status: %s", req.NamespacedName.Name)
-
+	// 封装的更加简单了
 	cluster := &clusterv1alpha1.Cluster{}
 	if err := c.Client.Get(context.TODO(), req.NamespacedName, cluster); err != nil {
 		// The resource may no longer exist, in which case we stop the informer.
@@ -119,6 +121,7 @@ func (c *ClusterStatusController) SetupWithManager(mgr controllerruntime.Manager
 	c.clusterConditionCache = clusterConditionStore{
 		failureThreshold: c.ClusterFailureThreshold.Duration,
 	}
+	// PredicateFunc 函数中定义了拦截的事件，help.NewClusterPredicateOnAgent
 	return controllerruntime.NewControllerManagedBy(mgr).For(&clusterv1alpha1.Cluster{}).WithEventFilter(c.PredicateFunc).WithOptions(controller.Options{
 		RateLimiter: ratelimiterflag.DefaultControllerRateLimiter(c.RateLimiterOptions),
 	}).Complete(c)
@@ -128,6 +131,7 @@ func (c *ClusterStatusController) syncClusterStatus(cluster *clusterv1alpha1.Clu
 	currentClusterStatus := *cluster.Status.DeepCopy()
 
 	// create a ClusterClient for the given member cluster
+	//1、clusterClient创建，目的是获取集群的信息
 	clusterClient, err := c.ClusterClientSetFunc(cluster.Name, c.Client, c.ClusterClientOption)
 	if err != nil {
 		klog.Errorf("Failed to create a ClusterClient for the given member cluster: %v, err is : %v", cluster.Name, err)
@@ -135,6 +139,7 @@ func (c *ClusterStatusController) syncClusterStatus(cluster *clusterv1alpha1.Clu
 	}
 
 	online, healthy := getClusterHealthStatus(clusterClient)
+	// 生成就绪状态
 	observedReadyCondition := generateReadyCondition(online, healthy)
 	readyCondition := c.clusterConditionCache.thresholdAdjustedReadyCondition(cluster, &observedReadyCondition)
 
@@ -149,6 +154,7 @@ func (c *ClusterStatusController) syncClusterStatus(cluster *clusterv1alpha1.Clu
 	}
 
 	// skip collecting cluster status if not ready
+	// 2、收集集群信息
 	if online && healthy {
 		// get or create informer for pods and nodes in member cluster
 		clusterInformerManager, err := c.buildInformerForCluster(cluster)
@@ -158,23 +164,24 @@ func (c *ClusterStatusController) syncClusterStatus(cluster *clusterv1alpha1.Clu
 
 		// init the lease controller for every cluster
 		c.initLeaseController(clusterInformerManager.Context(), cluster)
-
+		// 获取版本信息
 		clusterVersion, err := getKubernetesVersion(clusterClient)
 		if err != nil {
 			klog.Errorf("Failed to get Kubernetes version for Cluster %s. Error: %v.", cluster.GetName(), err)
 		}
 
 		// get the list of APIs installed in the member cluster
+		// 获取API列表
 		apiEnables, err := getAPIEnablements(clusterClient)
 		if err != nil {
 			klog.Errorf("Failed to get APIs installed in Cluster %s. Error: %v.", cluster.GetName(), err)
 		}
-
+		// 获取节点
 		nodes, err := listNodes(clusterInformerManager)
 		if err != nil {
 			klog.Errorf("Failed to list nodes for Cluster %s. Error: %v.", cluster.GetName(), err)
 		}
-
+		//获取所有pod
 		pods, err := listPods(clusterInformerManager)
 		if err != nil {
 			klog.Errorf("Failed to list pods for Cluster %s. Error: %v.", cluster.GetName(), err)
@@ -188,7 +195,7 @@ func (c *ClusterStatusController) syncClusterStatus(cluster *clusterv1alpha1.Clu
 
 	setTransitionTime(currentClusterStatus.Conditions, readyCondition)
 	meta.SetStatusCondition(&currentClusterStatus.Conditions, *readyCondition)
-
+	//更新集群状态
 	return c.updateStatusIfNeeded(cluster, currentClusterStatus)
 }
 
@@ -201,10 +208,21 @@ func (c *ClusterStatusController) setStatusCollectionFailedCondition(cluster *cl
 
 // updateStatusIfNeeded calls updateStatus only if the status of the member cluster is not the same as the old status
 func (c *ClusterStatusController) updateStatusIfNeeded(cluster *clusterv1alpha1.Cluster, currentClusterStatus clusterv1alpha1.ClusterStatus) (controllerruntime.Result, error) {
+	// 不相等进行状态的更新
 	if !equality.Semantic.DeepEqual(cluster.Status, currentClusterStatus) {
+
 		klog.V(4).Infof("Start to update cluster status: %s", cluster.Name)
+		//go-client的重试，这里调用的是"sigs.k8s.io/controller-runtime/pkg/client"，最后应该是更新的是本地的cluster的状态
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() (err error) {
 			cluster.Status = currentClusterStatus
+			//最后调用的是go-client 的更新时间o.Put().
+			//		NamespaceIfScoped(o.GetNamespace(), o.isNamespaced()).
+			//		Resource(o.resource()).
+			//		Name(o.GetName()).
+			//		Body(obj).
+			//		VersionedParams(updateOpts.AsUpdateOptions(), c.paramCodec).
+			//		Do(ctx).
+			//		Into(obj)
 			updateErr := c.Status().Update(context.TODO(), cluster)
 			if updateErr == nil {
 				return nil
@@ -284,8 +302,9 @@ func (c *ClusterStatusController) initLeaseController(ctx context.Context, clust
 	}
 
 	// renewInterval is how often the lease renew time is updated.
+	// 1、获取更新间隔
 	renewInterval := time.Duration(float64(c.ClusterLeaseDuration.Nanoseconds()) * c.ClusterLeaseRenewIntervalFraction)
-
+	// 2、构建controller，这里构建了一个LeaseController
 	clusterLeaseController := lease.NewController(
 		clock.RealClock{},
 		c.KubeClient,

@@ -153,6 +153,7 @@ func (c *Controller) Start(ctx context.Context) error {
 	defer klog.Infof("Shutting cluster health monitor")
 
 	// Incorporate the results of cluster health signal pushed from cluster-status-controller to master.
+	// 开启集群状态监控，定时调用
 	go wait.UntilWithContext(ctx, func(ctx context.Context) {
 		if err := c.monitorClusterHealth(ctx); err != nil {
 			klog.Errorf("Error monitoring cluster health: %v", err)
@@ -327,6 +328,7 @@ func (c *Controller) monitorClusterHealth(ctx context.Context) (err error) {
 				return true, nil
 			}
 			clusterName := cluster.Name
+			// 获取集群
 			if err = c.Get(ctx, client.ObjectKey{Name: clusterName}, cluster); err != nil {
 				// If the cluster does not exist any more, we delete the health data from the map.
 				if apierrors.IsNotFound(err) {

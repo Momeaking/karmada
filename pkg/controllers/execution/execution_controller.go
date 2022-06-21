@@ -67,13 +67,13 @@ func (c *Controller) Reconcile(ctx context.Context, req controllerruntime.Reques
 		klog.Errorf("Failed to get member cluster name for work %s/%s", work.Namespace, work.Name)
 		return controllerruntime.Result{Requeue: true}, err
 	}
-
+	// 获取集群
 	cluster, err := util.GetCluster(c.Client, clusterName)
 	if err != nil {
 		klog.Errorf("Failed to get the given member cluster %s", clusterName)
 		return controllerruntime.Result{Requeue: true}, err
 	}
-
+	//判断是否已经删除
 	if !work.DeletionTimestamp.IsZero() {
 		// Abort deleting workload if cluster is unready when unjoining cluster, otherwise the unjoin process will be failed.
 		if util.IsClusterReady(&cluster.Status) {
@@ -88,7 +88,7 @@ func (c *Controller) Reconcile(ctx context.Context, req controllerruntime.Reques
 
 		return c.removeFinalizer(work)
 	}
-
+	//判断集群的状态是否是ready
 	if !util.IsClusterReady(&cluster.Status) {
 		klog.Errorf("Stop sync work(%s/%s) for cluster(%s) as cluster not ready.", work.Namespace, work.Name, cluster.Name)
 		return controllerruntime.Result{Requeue: true}, fmt.Errorf("cluster(%s) not ready", cluster.Name)

@@ -57,6 +57,7 @@ func CreateClusterObject(controlPlaneClient *karmadaclientset.Clientset, cluster
 // CreateOrUpdateClusterObject create cluster object in karmada control plane,
 // if cluster object has been existed and different from input clusterObj, update it.
 func CreateOrUpdateClusterObject(controlPlaneClient *karmadaclientset.Clientset, clusterObj *clusterv1alpha1.Cluster, mutate func(*clusterv1alpha1.Cluster)) (*clusterv1alpha1.Cluster, error) {
+	//1、检测集群是否存在
 	cluster, exist, err := GetClusterWithKarmadaClient(controlPlaneClient, clusterObj.Name)
 	if err != nil {
 		return nil, err
